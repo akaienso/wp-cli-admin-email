@@ -32,31 +32,27 @@ jobs:
           cat changed_files.txt
 
           # Repo currently contains only one code file: Admin-Email-Command.php
-          # If you add more code files later, expand this list/regex.
           CODE_CHANGED=$(grep -E '^(Admin-Email-Command\.php)$' changed_files.txt | wc -l | tr -d ' ')
           CHANGELOG_CHANGED=$(grep -E '^CHANGELOG\.md$' changed_files.txt | wc -l | tr -d ' ')
 
           echo "code_changed=$CODE_CHANGED" >> "$GITHUB_OUTPUT"
           echo "changelog_changed=$CHANGELOG_CHANGED" >> "$GITHUB_OUTPUT"
 
-      - name: Fail if code changed without changelog update
-        if: steps.diff.outputs.code_changed != '0' && steps.diff.outputs.changelog_changed == '0'
+      - name: Set failure flag when changelog missing
+        id: gate
         shell: bash
         run: |
-          cat <<'EOF'
-❌ CHANGELOG.md update required
+          set -euo pipefail
+          REQUIRE_FAIL=0
 
-This pull request modifies code (Admin-Email-Command.php), but does not update CHANGELOG.md.
+          if [ "${{ steps.diff.outputs.code_changed }}" != "0" ] && [ "${{ steps.diff.outputs.changelog_changed }}" = "0" ]; then
+            REQUIRE_FAIL=1
+          fi
 
-Policy (see CONTRIBUTING.md):
-- If your PR is user-visible, add ONE bullet under "## [Unreleased]" in CHANGELOG.md.
-- If it is not user-visible, explain why in the PR and request the `skip-changelog` label.
+          echo "require_fail=$REQUIRE_FAIL" >> "$GITHUB_OUTPUT"
 
-EOF
-          exit 1
-
-      - name: Comment on PR with instructions (only when failing)
-        if: steps.diff.outputs.code_changed != '0' && steps.diff.outputs.changelog_changed == '0'
+      - name: Comment on PR with instructions
+        if: steps.gate.outputs.require_fail == '1'
         uses: actions/github-script@v7
         with:
           script: |
@@ -69,7 +65,7 @@ EOF
               "- Add **one bullet** under `## [Unreleased]` in `CHANGELOG.md`, **or**",
               "- If not user-facing, explain why in the PR description and request the `skip-changelog` label.",
               "",
-              "See `CONTRIBUTING.md` for the policy."
+              "See `CONTRIBUTING.md` for details."
             ].join("\n");
 
             await github.rest.issues.createComment({
@@ -78,3 +74,18 @@ EOF
               issue_number: context.issue.number,
               body
             });
+
+      - name: Fail if code changed without changelog update
+        if: steps.gate.outputs.require_fail == '1'
+        shell: bash
+        run: |
+          cat <<'EOF'
+          ❌ CHANGELOG.md update required
+
+          This pull request modifies code (Admin-Email-Command.php), but does not update CHANGELOG.md.
+
+          Policy (see CONTRIBUTING.md):
+          - If your PR is user-visible, add ONE bullet under "## [Unreleased]" in CHANGELOG.md.
+          - If it is not user-visible, explain why in the PR and request the `skip-changelog` label.
+          EOF
+          exit 1
