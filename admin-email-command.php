@@ -12,7 +12,7 @@ namespace Akaienso\WP_CLI;
  * Includes pagination for large multisite networks and an interactive Help pager
  * that displays README.md with a generated table of contents.
  *
- * v1.1.1
+ * v1.1.2
  */
 
 if ( ! defined( 'WP_CLI' ) || ! \WP_CLI ) {
@@ -267,7 +267,7 @@ class Admin_Email_Command {
 		}
 
 		if ( ! empty( $assoc_args['url'] ) ) {
-			$blog_id = (int) url_to_blogid( (string) $assoc_args['url'] );
+			$blog_id = (int) \url_to_blogid( (string) $assoc_args['url'] );
 			if ( ! $blog_id ) {
 				\WP_CLI::error( "Could not find site for URL: {$assoc_args['url']}" );
 			}
@@ -490,7 +490,7 @@ class Admin_Email_Command {
 	}
 
 	private function update_one_site( string $site_url, string $email, bool $dry_run ) : void {
-		$blog_id = (int) url_to_blogid( $site_url );
+		$blog_id = (int) \url_to_blogid( $site_url );
 		if ( ! $blog_id ) {
 			\WP_CLI::error( "Could not find site for URL: {$site_url}" );
 		}

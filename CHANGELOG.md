@@ -14,6 +14,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Removed
 
+## [v1.1.2] - 2025-12-31
+
+### Fixed
+- Fix fatal error: `Call to undefined function url_to_blogid()` by prefixing WordPress core function with global namespace operator (`\url_to_blogid()`)
+
 ## [v1.1.1] - 2025-12-31
 
 ### Changed
