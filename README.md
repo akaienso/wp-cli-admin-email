@@ -49,8 +49,8 @@ This tool is intended to be used in operational and production environments.
 The following aspects are considered stable:
 
 - The `wp admin-email` command name
-- The `set` subcommand
-- Supported flags (`--network`, `--url`, `--dry-run`)
+- The `set` and `get` subcommands
+- Supported flags (`--network`, `--url`, `--dry-run`, `--format`)
 - Interactive confirmation behavior
 
 Changes that would alter these interfaces will be versioned and documented in
@@ -94,6 +94,41 @@ This is strongly recommended before making live changes on large networks.
 
 Non-interactive commands are useful for scripting or when you already know exactly what change you want to make.
 
+#### Get current admin email
+
+```bash
+wp admin-email get
+```
+
+- Displays the current `admin_email` for the current site
+- Default output format is a table
+
+#### Get admin email with custom format
+
+```bash
+wp admin-email get --format=json
+wp admin-email get --format=csv
+wp admin-email get --format=yaml
+```
+
+- Supported formats: `table`, `json`, `csv`, `yaml`
+
+#### Get admin email for a specific site (multisite)
+
+```bash
+wp admin-email get --url=https://example.com/subsite/
+```
+
+- Displays the admin_email for the specified site URL
+
+#### Get admin emails for all sites (multisite)
+
+```bash
+wp admin-email get --network
+```
+
+- Displays admin_email values for all sites in the network
+
 #### Update a single-site install
 ```bash
 wp admin-email set user@example.com
@@ -109,6 +144,7 @@ wp admin-email set user@example.com --network
 ```
 
 - Updates the admin_email for every site in the network
+- Shows a progress indicator for large networks
 - Displays the updated, paginated list afterward
 
 #### Update one site in a multisite network
@@ -287,11 +323,17 @@ The rest of the network remains untouched.
 
 Before making changes, you want to see where administrative emails are currently pointing—especially in large networks.
 
+Interactive mode:
 ```bash
 wp admin-email
 ```
 
-Results are paginated automatically to avoid overwhelming the terminal.
+Non-interactive mode (useful for scripting):
+```bash
+wp admin-email get --network --format=json
+```
+
+Results are paginated automatically in interactive mode to avoid overwhelming the terminal.
 
 ---
 

@@ -14,6 +14,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Removed
 
+## [v1.1.1] - 2025-12-31
+
+### Changed
+- Update README.md to document the new `get` subcommand and `--format` flag
+
 ## [v1.1.0] - 2025-12-31
 
 ### Added

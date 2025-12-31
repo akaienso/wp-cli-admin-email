@@ -12,7 +12,7 @@ namespace Akaienso\WP_CLI;
  * Includes pagination for large multisite networks and an interactive Help pager
  * that displays README.md with a generated table of contents.
  *
- * v1.1.0
+ * v1.1.1
  */
 
 if ( ! defined( 'WP_CLI' ) || ! \WP_CLI ) {
