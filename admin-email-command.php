@@ -1,4 +1,8 @@
 <?php
+declare(strict_types=1);
+
+namespace Akaienso\WP_CLI;
+
 /**
  * WP-CLI command: wp admin-email
  *
@@ -8,14 +12,22 @@
  * Includes pagination for large multisite networks and an interactive Help pager
  * that displays README.md with a generated table of contents.
  *
- * v1.0.1
+ * v1.1.0
  */
 
-if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
+if ( ! defined( 'WP_CLI' ) || ! \WP_CLI ) {
 	return;
 }
 
 class Admin_Email_Command {
+
+	private const DEFAULT_TERMINAL_HEIGHT = 24;
+	private const RESERVED_LINES = 8;
+	private const MIN_PAGE_SIZE = 10;
+	private const MAX_PAGE_SIZE = 50;
+	private const UPDATE_BATCH_SIZE = 100;
+	private const HELP_PAGER_RESERVED_LINES = 2;
+	private const HELP_PAGER_MIN_SIZE = 8;
 
 	/**
 	 * Interactive command.
@@ -62,13 +74,12 @@ class Admin_Email_Command {
 					continue;
 				}
 
-				$new_email = trim( (string) \cli\prompt( 'New admin email:' ) );
-				if ( empty( $new_email ) ) {
-					\WP_CLI::warning( 'Email cannot be blank.' );
-					continue;
-				}
+			$new_email = $this->prompt_and_validate_email();
+			if ( null === $new_email ) {
+				continue;
+			}
 
-				$site_url = trim( (string) \cli\prompt( 'Optional site URL (blank = ALL sites):' ) );
+			$site_url = trim( (string) \cli\prompt( 'Optional site URL (blank = ALL sites):' ) );
 				$this->confirm_or_abort( $new_email, $site_url ?: null, $dry_run );
 
 				if ( $site_url ) {
@@ -112,9 +123,8 @@ class Admin_Email_Command {
 				continue;
 			}
 
-			$new_email = trim( (string) \cli\prompt( 'New admin email:' ) );
-			if ( empty( $new_email ) ) {
-				\WP_CLI::warning( 'Email cannot be blank.' );
+			$new_email = $this->prompt_and_validate_email();
+			if ( null === $new_email ) {
 				continue;
 			}
 
@@ -123,7 +133,10 @@ class Admin_Email_Command {
 			if ( $dry_run ) {
 				\WP_CLI::log( "[DRY RUN] Would update admin_email from '{$current}' to '{$new_email}'." );
 			} else {
-				update_option( 'admin_email', $new_email );
+				$result = update_option( 'admin_email', $new_email );
+				if ( false === $result ) {
+					\WP_CLI::error( 'Failed to update admin_email. Check database permissions.' );
+				}
 				\WP_CLI::success( "Updated admin_email to {$new_email}." );
 			}
 
@@ -158,9 +171,9 @@ class Admin_Email_Command {
 	 * wp admin-email set user@example.com --dry-run
 	 */
 	public function set( $args, $assoc_args ) {
-		$new_email = trim( (string) ( $args[0] ?? '' ) );
-		if ( empty( $new_email ) ) {
-			\WP_CLI::error( 'Email is required.' );
+		$new_email = sanitize_email( trim( (string) ( $args[0] ?? '' ) ) );
+		if ( empty( $new_email ) || ! is_email( $new_email ) ) {
+			\WP_CLI::error( 'Invalid email address.' );
 		}
 
 		$dry_run = (bool) \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run', false );
@@ -174,7 +187,10 @@ class Admin_Email_Command {
 				return;
 			}
 
-			update_option( 'admin_email', $new_email );
+			$result = update_option( 'admin_email', $new_email );
+			if ( false === $result ) {
+				\WP_CLI::error( 'Failed to update admin_email. Check database permissions.' );
+			}
 			\WP_CLI::success( "Updated admin_email to {$new_email}." );
 
 			$current = (string) get_option( 'admin_email' );
@@ -203,6 +219,73 @@ class Admin_Email_Command {
 		}
 
 		\WP_CLI::error( 'On multisite, specify --network or --url=<siteurl>.' );
+	}
+
+	/**
+	 * Get current admin email.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--url=<siteurl>]
+	 * : Get admin email for a specific site (multisite).
+	 *
+	 * [--network]
+	 * : Get admin emails for all sites in a multisite network.
+	 *
+	 * [--format=<format>]
+	 * : Output format. Options: table, json, csv, yaml. Default: table.
+	 *
+	 * ## EXAMPLES
+	 *
+	 * wp admin-email get
+	 * wp admin-email get --url=https://example.com/subsite/
+	 * wp admin-email get --network
+	 * wp admin-email get --format=json
+	 */
+	public function get( $args, $assoc_args ) {
+		$format = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format', 'table' );
+
+		if ( ! is_multisite() ) {
+			$admin_email = (string) get_option( 'admin_email' );
+			$data = [ [ 'admin_email' => $admin_email ] ];
+			\WP_CLI\Utils\format_items( $format, $data, [ 'admin_email' ] );
+			return;
+		}
+
+		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'network', false ) ) {
+			$rows = [];
+			foreach ( get_sites( [ 'number' => 0 ] ) as $site ) {
+				switch_to_blog( (int) $site->blog_id );
+				$rows[] = [
+					'url'         => get_site_url(),
+					'admin_email' => (string) get_option( 'admin_email' ),
+				];
+				restore_current_blog();
+			}
+			\WP_CLI\Utils\format_items( $format, $rows, [ 'url', 'admin_email' ] );
+			return;
+		}
+
+		if ( ! empty( $assoc_args['url'] ) ) {
+			$blog_id = (int) url_to_blogid( (string) $assoc_args['url'] );
+			if ( ! $blog_id ) {
+				\WP_CLI::error( "Could not find site for URL: {$assoc_args['url']}" );
+			}
+
+			switch_to_blog( $blog_id );
+			$admin_email = (string) get_option( 'admin_email' );
+			$url = get_site_url();
+			restore_current_blog();
+
+			$data = [ [ 'url' => $url, 'admin_email' => $admin_email ] ];
+			\WP_CLI\Utils\format_items( $format, $data, [ 'url', 'admin_email' ] );
+			return;
+		}
+
+		// Default: get current site's admin email
+		$admin_email = (string) get_option( 'admin_email' );
+		$data = [ [ 'admin_email' => $admin_email ] ];
+		\WP_CLI\Utils\format_items( $format, $data, [ 'admin_email' ] );
 	}
 
 	/**
@@ -345,7 +428,7 @@ class Admin_Email_Command {
 		$page_size = $this->get_page_size();
 
 		// Reserve a couple lines for the prompt/footer.
-		$page_size = max( 8, $page_size - 2 );
+		$page_size = max( self::HELP_PAGER_MIN_SIZE, $page_size - self::HELP_PAGER_RESERVED_LINES );
 
 		$total_lines = count( $lines );
 		$offset      = 0;
@@ -391,16 +474,16 @@ class Admin_Email_Command {
 	private function get_page_size() : int {
 		$lines = (int) getenv( 'LINES' );
 		if ( $lines <= 0 ) {
-			$lines = 24;
+			$lines = self::DEFAULT_TERMINAL_HEIGHT;
 		}
 
-		$page = $lines - 8;
+		$page = $lines - self::RESERVED_LINES;
 
-		if ( $page < 10 ) {
-			$page = 10;
+		if ( $page < self::MIN_PAGE_SIZE ) {
+			$page = self::MIN_PAGE_SIZE;
 		}
-		if ( $page > 50 ) {
-			$page = 50;
+		if ( $page > self::MAX_PAGE_SIZE ) {
+			$page = self::MAX_PAGE_SIZE;
 		}
 
 		return $page;
@@ -420,7 +503,11 @@ class Admin_Email_Command {
 		if ( $dry_run ) {
 			\WP_CLI::log( "[DRY RUN] {$url}: '{$current}' → '{$email}'" );
 		} else {
-			update_option( 'admin_email', $email );
+			$result = update_option( 'admin_email', $email );
+			if ( false === $result ) {
+				restore_current_blog();
+				\WP_CLI::error( "Failed to update admin_email for {$url}. Check database permissions." );
+			}
 			\WP_CLI::success( "Updated {$url} to {$email}" );
 		}
 
@@ -428,24 +515,73 @@ class Admin_Email_Command {
 	}
 
 	private function update_all_sites( string $email, bool $dry_run ) : void {
-		foreach ( get_sites( [ 'number' => 0 ] ) as $site ) {
-			switch_to_blog( (int) $site->blog_id );
-			$url     = get_site_url();
-			$current = (string) get_option( 'admin_email' );
+		$failures = [];
+		$batch_size = self::UPDATE_BATCH_SIZE;
+		$total = $this->get_total_sites();
+		$offset = 0;
 
-			if ( $dry_run ) {
-				\WP_CLI::log( "[DRY RUN] {$url}: '{$current}' → '{$email}'" );
-			} else {
-				update_option( 'admin_email', $email );
-				\WP_CLI::log( "Updated {$url}" );
+		if ( ! $dry_run && $total > 1 ) {
+			$progress = \WP_CLI\Utils\make_progress_bar( 'Updating sites', $total );
+		}
+
+		while ( $offset < $total ) {
+			$sites = get_sites(
+				[
+					'number' => $batch_size,
+					'offset' => $offset,
+				]
+			);
+
+			foreach ( $sites as $site ) {
+				switch_to_blog( (int) $site->blog_id );
+				$url     = get_site_url();
+				$current = (string) get_option( 'admin_email' );
+
+				if ( $dry_run ) {
+					\WP_CLI::log( "[DRY RUN] {$url}: '{$current}' → '{$email}'" );
+				} else {
+					$result = update_option( 'admin_email', $email );
+					if ( false === $result ) {
+						$failures[] = $url;
+						\WP_CLI::warning( "Failed to update {$url}. Check database permissions." );
+					}
+				}
+
+				if ( ! $dry_run && isset( $progress ) ) {
+					$progress->tick();
+				}
+
+				restore_current_blog();
 			}
 
-			restore_current_blog();
+			$offset += count( $sites );
+		}
+
+		if ( isset( $progress ) ) {
+			$progress->finish();
 		}
 
 		if ( ! $dry_run ) {
-			\WP_CLI::success( 'Network update complete.' );
+			if ( empty( $failures ) ) {
+				\WP_CLI::success( 'Network update complete.' );
+			} else {
+				\WP_CLI::warning( sprintf( 'Network update complete with %d failure(s).', count( $failures ) ) );
+			}
 		}
+	}
+
+	/**
+	 * Prompt for email address and validate it.
+	 *
+	 * @return string|null Valid email address, or null if validation failed.
+	 */
+	private function prompt_and_validate_email() : ?string {
+		$email = sanitize_email( trim( (string) \cli\prompt( 'New admin email:' ) ) );
+		if ( empty( $email ) || ! is_email( $email ) ) {
+			\WP_CLI::warning( 'Invalid email address.' );
+			return null;
+		}
+		return $email;
 	}
 
 	private function confirm_or_abort( string $email, ?string $site_url, bool $dry_run ) : void {
@@ -470,4 +606,4 @@ class Admin_Email_Command {
 	}
 }
 
-\WP_CLI::add_command( 'admin-email', 'Admin_Email_Command' );
+\WP_CLI::add_command( 'admin-email', 'Akaienso\WP_CLI\Admin_Email_Command' );
