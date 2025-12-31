@@ -14,6 +14,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Removed
 
+## [v1.0.4] - 2025-12-31
+
+### Fixed
+- Fix CI workflow enforcing CHANGELOG.md updates on pull requests.
+
 ## [v1.0.3] - 2025-12-31
 
 ### Changed
