@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [v1.0.2] - 2025-12-31
+
+### Changed
+- Add explicit [L]ist option in interactive mode for both single-site and multisite.
+- Automatically re-display current admin email status after exiting Help.
+
 ## [v1.0.1] - 2025-12-31
 
 ### Added
@@ -17,7 +23,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 - README expanded and reorganized: clearer usage, rationale (“Why This Exists”), support boundaries, external resources, contribution guidelines, and scripting examples.
 - README now links prominently to `CHANGELOG.md`.
 
-## [1.0.0] - 2025-12-31
+## [v1.0.0] - 2025-12-31
+
 ### Added
 - Initial WP-CLI package.
 - Interactive `wp admin-email` command.
