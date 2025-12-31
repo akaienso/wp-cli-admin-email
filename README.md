@@ -370,51 +370,15 @@ These resources cover the underlying systems this tool interacts with and are th
 
 ## How to Contribute
 
-This project is public because shared operational tooling benefits everyone. Contributions are welcome, but with a few expectations.
+Pull requests and issues are welcome.
 
-### Pull Requests
+Please read **CONTRIBUTING.md** before submitting changes:
 
-If you’d like to contribute:
+➡️ [CONTRIBUTING.md](CONTRIBUTING.md)
 
-- Fork the repository
-- Create a focused branch for your change
-- Open a pull request with a clear description of:
-  - what problem the change solves
-  - how it behaves on both single-site and multisite installs
-  - whether it affects interactive or non-interactive usage
-
-Small, well-scoped improvements are preferred over large refactors.
-
-### Issues and Suggestions
-
-Bug reports, edge cases, and workflow suggestions are welcome via GitHub Issues.
-
-When reporting issues, please include:
-- whether the site is single-site or multisite
-- approximate network size (for multisite)
-- the command used and expected vs actual behavior
-
-### Design Philosophy
-
-This tool is intentionally conservative:
-
-- Safety and clarity are prioritized over convenience
-- Interactive prompts exist to prevent accidental production changes
-- Behavior should be predictable and easy to reason about under pressure
-
-Changes that reduce safety, remove confirmations, or obscure output are unlikely to be accepted.
-
-### Code Style
-
-- Follow existing structure and naming
-- Avoid unnecessary abstractions
-- Keep logic readable over clever
-
-The goal is a tool that administrators trust—not one they have to think about.
+Key policy: if your PR changes code, it must include a small update to `CHANGELOG.md` under **[Unreleased]** (unless it’s labeled `skip-changelog`).
 
 ---
-
-Thank you for taking the time to improve this project.
 
 ## License
 ### MIT

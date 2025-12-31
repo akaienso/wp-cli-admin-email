@@ -1,0 +1,80 @@
+name: Require changelog update
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  changelog_required:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for diff)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed files
+        id: diff
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+
+          git diff --name-only "$BASE" "$HEAD" > changed_files.txt
+
+          echo "Changed files:"
+          cat changed_files.txt
+
+          # Repo currently contains only one code file: Admin-Email-Command.php
+          # If you add more code files later, expand this list/regex.
+          CODE_CHANGED=$(grep -E '^(Admin-Email-Command\.php)$' changed_files.txt | wc -l | tr -d ' ')
+          CHANGELOG_CHANGED=$(grep -E '^CHANGELOG\.md$' changed_files.txt | wc -l | tr -d ' ')
+
+          echo "code_changed=$CODE_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "changelog_changed=$CHANGELOG_CHANGED" >> "$GITHUB_OUTPUT"
+
+      - name: Fail if code changed without changelog update
+        if: steps.diff.outputs.code_changed != '0' && steps.diff.outputs.changelog_changed == '0'
+        shell: bash
+        run: |
+          cat <<'EOF'
+❌ CHANGELOG.md update required
+
+This pull request modifies code (Admin-Email-Command.php), but does not update CHANGELOG.md.
+
+Policy (see CONTRIBUTING.md):
+- If your PR is user-visible, add ONE bullet under "## [Unreleased]" in CHANGELOG.md.
+- If it is not user-visible, explain why in the PR and request the `skip-changelog` label.
+
+EOF
+          exit 1
+
+      - name: Comment on PR with instructions (only when failing)
+        if: steps.diff.outputs.code_changed != '0' && steps.diff.outputs.changelog_changed == '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = [
+              "❌ **CHANGELOG.md update required**",
+              "",
+              "This PR changes `Admin-Email-Command.php` but does not update `CHANGELOG.md`.",
+              "",
+              "**What to do:**",
+              "- Add **one bullet** under `## [Unreleased]` in `CHANGELOG.md`, **or**",
+              "- If not user-facing, explain why in the PR description and request the `skip-changelog` label.",
+              "",
+              "See `CONTRIBUTING.md` for the policy."
+            ].join("\n");
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });

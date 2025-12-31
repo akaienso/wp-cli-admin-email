@@ -15,7 +15,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Create GitHub Release from CHANGELOG.md
+      - name: Extract changelog section for release
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME}"
+
+          awk -v version="$VERSION" '
+            BEGIN { found=0 }
+            $0 ~ "^## \\[" version "\\]" { found=1; print; next }
+            found && $0 ~ "^## \\[" { exit }
+            found { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "ERROR: No changelog section found for $VERSION"
+            exit 1
+          fi
+
+      - name: Create GitHub Release from CHANGELOG.md section
         uses: softprops/action-gh-release@v2
         with:
-          body_path: CHANGELOG.md
+          body_path: RELEASE_NOTES.md
