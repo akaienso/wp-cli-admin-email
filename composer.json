@@ -1,0 +1,15 @@
+{
+  "name": "akaienso/wp-cli-admin-email",
+  "description": "WP-CLI command to view/update WordPress admin_email for single-site or multisite.",
+  "type": "wp-cli-package",
+  "license": "MIT",
+  "authors": [
+    { "name": "Rob Moore" }
+  ],
+  "require": {
+    "wp-cli/wp-cli": "^2.0"
+  },
+  "autoload": {
+    "files": [ "admin-email-command.php" ]
+  }
+}
