@@ -14,6 +14,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Removed
 
+## [v1.1.0] - 2025-12-31
+
+### Added
+- `get` subcommand for non-interactive admin email retrieval
+- Progress indicator for bulk network updates
+- Email validation using WordPress `is_email()` function
+- Input sanitization using `sanitize_email()`
+
+### Changed
+- Add `declare(strict_types=1);` for type safety
+- Add namespace `Akaienso\WP_CLI` to prevent class name conflicts
+- Extract common email validation logic into `prompt_and_validate_email()` method
+- Replace magic numbers with named constants
+
+### Fixed
+- Add error handling for `update_option()` failures
+- Fix memory issue in `update_all_sites()` by processing sites in batches instead of loading all at once
+- Improve error reporting for network updates (track and report failures)
+
 ## [v1.0.5] - 2025-12-31
 
 ### Added
