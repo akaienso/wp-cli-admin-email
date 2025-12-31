@@ -2,9 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-The format follows Keep a Changelog and Semantic Versioning.
+The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [v1.0.1] - 2025-12-31
+
+### Added
+- Interactive Help option (`[H]elp`) that displays `README.md` in a paginated viewer.
+- Generated table of contents at the top of the Help viewer (derived from Markdown headings).
+- `SECURITY.md` describing intended behavior and how to report genuine security issues.
+
+### Changed
+- Interactive UX prompts updated to include Help navigation.
+- After approved changes, the command automatically re-displays current admin email status (paged on multisite).
+- README expanded and reorganized: clearer usage, rationale (“Why This Exists”), support boundaries, external resources, contribution guidelines, and scripting examples.
+- README now links prominently to `CHANGELOG.md`.
 
 ## [1.0.0] - 2025-12-31
 ### Added
