@@ -14,6 +14,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Removed
 
+## [v1.0.5] - 2025-12-31
+
+### Added
+- Add comprehensive GitHub CoPilot instructions to repository.
+
 ## [v1.0.4] - 2025-12-31
 
 ### Fixed
