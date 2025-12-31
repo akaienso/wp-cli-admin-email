@@ -2,8 +2,10 @@
 /**
  * WP-CLI command: wp admin-email
  *
- * Provides an interactive and non-interactive way to view and update
- * the WordPress admin_email option for single-site and multisite installs.
+ * Interactive and non-interactive tooling to view/update WordPress `admin_email`
+ * for single-site and multisite installs.
+ *
+ * Includes pagination for large multisite networks.
  *
  * v1.0.0
  */
@@ -63,7 +65,7 @@ class Admin_Email_Command {
 						$this->update_all_sites( $new_email, $dry_run );
 					}
 
-					// After an approved and executed change (or dry-run), show current status.
+					// After an approved and executed change (or dry-run), show current status (paged).
 					$this->render_network_table();
 				}
 			}
@@ -161,13 +163,19 @@ class Admin_Email_Command {
 
 		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'network', false ) ) {
 			$this->update_all_sites( $new_email, $dry_run );
+
+			// If live, show current status (paged).
+			if ( ! $dry_run ) {
+				$this->render_network_table();
+			}
+
 			return;
 		}
 
 		if ( ! empty( $assoc_args['url'] ) ) {
 			$this->update_one_site( $assoc_args['url'], $new_email, $dry_run );
 
-			// If this was a live update, show current status.
+			// If live, show current status (paged).
 			if ( ! $dry_run ) {
 				$this->render_network_table();
 			}
@@ -178,20 +186,81 @@ class Admin_Email_Command {
 		\WP_CLI::error( 'On multisite, specify --network or --url=<siteurl>.' );
 	}
 
-	private function render_network_table() {
-		$rows  = [];
-		$sites = get_sites( [ 'number' => 0 ] );
+	/**
+	 * Render multisite admin_email status with pagination for large networks.
+	 */
+	private function render_network_table( int $page_size = 0 ) {
+		$page_size = $page_size > 0 ? $page_size : $this->get_page_size();
 
-		foreach ( $sites as $site ) {
-			switch_to_blog( (int) $site->blog_id );
-			$rows[] = [
-				'url'         => get_site_url(),
-				'admin_email' => (string) get_option( 'admin_email' ),
-			];
-			restore_current_blog();
+		$total = $this->get_total_sites();
+		if ( $total <= 0 ) {
+			\WP_CLI::log( 'No sites found.' );
+			return;
 		}
 
-		\WP_CLI\Utils\format_items( 'table', $rows, [ 'url', 'admin_email' ] );
+		$offset = 0;
+
+		while ( $offset < $total ) {
+			$sites = get_sites(
+				[
+					'number' => $page_size,
+					'offset' => $offset,
+				]
+			);
+
+			$rows = [];
+			foreach ( $sites as $site ) {
+				switch_to_blog( (int) $site->blog_id );
+				$rows[] = [
+					'url'         => get_site_url(),
+					'admin_email' => (string) get_option( 'admin_email' ),
+				];
+				restore_current_blog();
+			}
+
+			\WP_CLI\Utils\format_items( 'table', $rows, [ 'url', 'admin_email' ] );
+
+			$offset += count( $sites );
+			if ( $offset >= $total ) {
+				return;
+			}
+
+			$start = max( 1, $offset - count( $sites ) + 1 );
+			$end   = $offset;
+
+			\WP_CLI::log( sprintf( 'Showing %d–%d of %d', $start, $end, $total ) );
+
+			$action = strtolower( trim( (string) \cli\prompt( '[Enter] next page, [Q] quit', null, '' ) ) );
+			if ( $action === 'q' ) {
+				return;
+			}
+		}
+	}
+
+	private function get_total_sites() : int {
+		$count = get_sites( [ 'count' => true ] );
+		return (int) $count;
+	}
+
+	private function get_page_size() : int {
+		// Use terminal height if available; fall back to 24.
+		$lines = (int) getenv( 'LINES' );
+		if ( $lines <= 0 ) {
+			$lines = 24;
+		}
+
+		// Reserve a few lines for headers, footer, and prompts.
+		$page = $lines - 8;
+
+		// Clamp to sensible bounds.
+		if ( $page < 10 ) {
+			$page = 10;
+		}
+		if ( $page > 50 ) {
+			$page = 50;
+		}
+
+		return $page;
 	}
 
 	private function update_one_site( string $site_url, string $email, bool $dry_run ) {
@@ -231,9 +300,6 @@ class Admin_Email_Command {
 
 		if ( ! $dry_run ) {
 			\WP_CLI::success( 'Network update complete.' );
-
-			// After an executed network-wide change, show current status.
-			$this->render_network_table();
 		}
 	}
 
