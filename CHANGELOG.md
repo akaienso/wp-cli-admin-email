@@ -1,11 +1,17 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
-The format is based on Keep a Changelog, and this project follows Semantic Versioning.
+The format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
 ## [1.0.0] - 2025-12-31
 ### Added
-- New WP-CLI command: `wp admin-email` (interactive) to detect single site vs multisite, display current admin_email(s), and optionally update.
-- Subcommand: `wp admin-email set <email>` with `--network`, `--url=<siteurl>`, and `--dry-run` options.
+- Initial WP-CLI package.
+- Interactive `wp admin-email` command.
+- Automatic detection of single-site vs multisite.
+- Network table display of site URLs and admin_email values.
+- Interactive prompts to update one site or all sites.
+- Non-interactive subcommand: `wp admin-email set <email>`.
+- Support for `--network`, `--url=<siteurl>`, and `--dry-run`.
