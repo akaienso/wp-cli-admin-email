@@ -5,7 +5,8 @@
  * Interactive and non-interactive tooling to view/update WordPress `admin_email`
  * for single-site and multisite installs.
  *
- * Includes pagination for large multisite networks.
+ * Includes pagination for large multisite networks and an interactive Help pager
+ * that displays README.md with a generated table of contents.
  *
  * v1.0.0
  */
@@ -37,11 +38,16 @@ class Admin_Email_Command {
 			$this->render_network_table();
 
 			while ( true ) {
-				$choice = \cli\prompt( 'Options: [S]et email, [R]efresh, [Q]uit', null, '' );
+				$choice = \cli\prompt( 'Options: [S]et email, [R]efresh, [H]elp, [Q]uit', null, '' );
 				$choice = strtolower( trim( (string) $choice ) );
 
 				if ( $choice === 'q' ) {
 					return;
+				}
+
+				if ( $choice === 'h' ) {
+					$this->show_help();
+					continue;
 				}
 
 				if ( $choice === 'r' ) {
@@ -79,32 +85,44 @@ class Admin_Email_Command {
 			[ 'admin_email' ]
 		);
 
-		$choice = strtolower( trim( (string) \cli\prompt( 'Options: [S]et email, [Q]uit', null, '' ) ) );
-		if ( $choice !== 's' ) {
-			return;
-		}
+		while ( true ) {
+			$choice = strtolower( trim( (string) \cli\prompt( 'Options: [S]et email, [H]elp, [Q]uit', null, '' ) ) );
 
-		$new_email = trim( (string) \cli\prompt( 'New admin email:' ) );
-		if ( empty( $new_email ) ) {
-			\WP_CLI::warning( 'Email cannot be blank.' );
-			return;
-		}
+			if ( $choice === 'q' ) {
+				return;
+			}
 
-		$this->confirm_or_abort( $new_email, null, $dry_run );
+			if ( $choice === 'h' ) {
+				$this->show_help();
+				continue;
+			}
 
-		if ( $dry_run ) {
-			\WP_CLI::log( "[DRY RUN] Would update admin_email from '{$current}' to '{$new_email}'." );
-		} else {
-			update_option( 'admin_email', $new_email );
-			\WP_CLI::success( "Updated admin_email to {$new_email}." );
+			if ( $choice !== 's' ) {
+				continue;
+			}
 
-			// After an approved and executed change, show current status.
-			$current = get_option( 'admin_email' );
-			\WP_CLI\Utils\format_items(
-				'table',
-				[ [ 'admin_email' => $current ] ],
-				[ 'admin_email' ]
-			);
+			$new_email = trim( (string) \cli\prompt( 'New admin email:' ) );
+			if ( empty( $new_email ) ) {
+				\WP_CLI::warning( 'Email cannot be blank.' );
+				continue;
+			}
+
+			$this->confirm_or_abort( $new_email, null, $dry_run );
+
+			if ( $dry_run ) {
+				\WP_CLI::log( "[DRY RUN] Would update admin_email from '{$current}' to '{$new_email}'." );
+			} else {
+				update_option( 'admin_email', $new_email );
+				\WP_CLI::success( "Updated admin_email to {$new_email}." );
+
+				// After an approved and executed change, show current status.
+				$current = get_option( 'admin_email' );
+				\WP_CLI\Utils\format_items(
+					'table',
+					[ [ 'admin_email' => $current ] ],
+					[ 'admin_email' ]
+				);
+			}
 		}
 	}
 
@@ -237,22 +255,134 @@ class Admin_Email_Command {
 		}
 	}
 
+	/**
+	 * Interactive Help pager: loads README.md and displays it page-by-page.
+	 * Includes a generated table of contents from Markdown headings.
+	 */
+	private function show_help() : void {
+		$readme_path = $this->locate_readme();
+		if ( ! $readme_path || ! is_readable( $readme_path ) ) {
+			\WP_CLI::warning( 'README.md not found or not readable.' );
+			return;
+		}
+
+		$raw = (string) file_get_contents( $readme_path );
+		$raw = str_replace( [ "\r\n", "\r" ], "\n", $raw );
+		$lines = explode( "\n", $raw );
+
+		$toc_lines = $this->build_toc_lines( $lines );
+
+		$help_lines = [];
+		$help_lines[] = 'HELP: wp-cli-admin-email (README.md)';
+		$help_lines[] = 'File: ' . $readme_path;
+		$help_lines[] = str_repeat( '-', 60 );
+		$help_lines[] = 'TABLE OF CONTENTS';
+		$help_lines[] = str_repeat( '-', 60 );
+		$help_lines = array_merge( $help_lines, $toc_lines ?: [ '(No headings found.)' ] );
+		$help_lines[] = '';
+		$help_lines[] = str_repeat( '-', 60 );
+		$help_lines[] = 'README';
+		$help_lines[] = str_repeat( '-', 60 );
+		$help_lines = array_merge( $help_lines, $lines );
+
+		$this->page_lines( $help_lines );
+	}
+
+    private function locate_readme() : ?string {
+        foreach ( [ 'README.md', 'readme.md' ] as $file ) {
+            $path = __DIR__ . '/' . $file;
+            if ( is_file( $path ) ) {
+                return $path;
+            }
+        }
+        return null;
+    }
+
+	/**
+	 * Build a simple TOC from Markdown headings.
+	 * Supports #..######. Indents based on level.
+	 */
+	private function build_toc_lines( array $lines ) : array {
+		$toc = [];
+
+		foreach ( $lines as $line ) {
+			if ( preg_match( '/^(#{1,6})\s+(.+?)\s*$/', $line, $m ) ) {
+				$level = strlen( $m[1] );
+				$title = trim( $m[2] );
+
+				// Skip the top-level title if you want it less noisy in TOC.
+				// Keeping it in for now because users asked for TOC at the top.
+				$indent = str_repeat( '  ', max( 0, $level - 1 ) );
+				$toc[]  = $indent . '- ' . $title;
+			}
+		}
+
+		return $toc;
+	}
+
+	/**
+	 * Page an array of lines using terminal height.
+	 * Controls:
+	 *  - Enter: next page
+	 *  - B: back one page
+	 *  - Q: quit
+	 */
+	private function page_lines( array $lines ) : void {
+		$page_size = $this->get_page_size();
+
+		// Reserve a couple lines for the prompt/footer.
+		$page_size = max( 8, $page_size - 2 );
+
+		$total_lines = count( $lines );
+		$offset      = 0;
+
+		while ( true ) {
+			// Clear-ish separation between pages without trying to control terminal state.
+			\WP_CLI::log( '' );
+
+			$chunk = array_slice( $lines, $offset, $page_size );
+			foreach ( $chunk as $l ) {
+				\WP_CLI::log( $l );
+			}
+
+			$end = min( $offset + $page_size, $total_lines );
+			\WP_CLI::log( sprintf( 'Lines %d–%d of %d', $offset + 1, $end, $total_lines ) );
+
+			if ( $end >= $total_lines ) {
+				$action = strtolower( trim( (string) \cli\prompt( '[Q] quit, [B] back', null, '' ) ) );
+				if ( $action === 'b' ) {
+					$offset = max( 0, $offset - $page_size );
+					continue;
+				}
+				return;
+			}
+
+			$action = strtolower( trim( (string) \cli\prompt( '[Enter] next, [B] back, [Q] quit', null, '' ) ) );
+			if ( $action === 'q' ) {
+				return;
+			}
+			if ( $action === 'b' ) {
+				$offset = max( 0, $offset - $page_size );
+				continue;
+			}
+
+			$offset = min( $total_lines, $offset + $page_size );
+		}
+	}
+
 	private function get_total_sites() : int {
 		$count = get_sites( [ 'count' => true ] );
 		return (int) $count;
 	}
 
 	private function get_page_size() : int {
-		// Use terminal height if available; fall back to 24.
 		$lines = (int) getenv( 'LINES' );
 		if ( $lines <= 0 ) {
 			$lines = 24;
 		}
 
-		// Reserve a few lines for headers, footer, and prompts.
 		$page = $lines - 8;
 
-		// Clamp to sensible bounds.
 		if ( $page < 10 ) {
 			$page = 10;
 		}
