@@ -14,6 +14,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Removed
 
+## [v1.0.3] - 2025-12-31
+
+### Changed
+- Enforce CHANGELOG.md updates for code changes via CI on pull requests.
+- Require PRs to document user-visible changes under [Unreleased] or request `skip-changelog`.
+- Improve contribution and release workflow documentation.
+- GitHub Releases now publish only the tagged section of CHANGELOG.md.
+
 ## [v1.0.2] - 2025-12-31
 
 ### Changed
