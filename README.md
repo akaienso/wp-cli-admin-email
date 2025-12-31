@@ -7,6 +7,9 @@ Adds: `wp admin-email`
 
 ## Usage
 `wp admin-email`
+
 `wp admin-email --dry-run`
+
 `wp admin-email set user@example.com --network`
+
 `wp admin-email set user@example.com --url=https://example.com/subsite/ --dry-run`
