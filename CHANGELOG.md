@@ -14,6 +14,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 
 ### Removed
 
+## [v1.1.3] - 2025-12-31
+
+### Fixed
+- Replace `url_to_blogid()` with custom `get_blog_id_from_url()` method using `get_sites()` for better WP-CLI compatibility. The `url_to_blogid()` function is not reliably available in WP-CLI contexts even when multisite is active.
+
 ## [v1.1.2] - 2025-12-31
 
 ### Fixed

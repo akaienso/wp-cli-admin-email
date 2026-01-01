@@ -12,7 +12,7 @@ namespace Akaienso\WP_CLI;
  * Includes pagination for large multisite networks and an interactive Help pager
  * that displays README.md with a generated table of contents.
  *
- * v1.1.2
+ * v1.1.3
  */
 
 if ( ! defined( 'WP_CLI' ) || ! \WP_CLI ) {
@@ -267,7 +267,7 @@ class Admin_Email_Command {
 		}
 
 		if ( ! empty( $assoc_args['url'] ) ) {
-			$blog_id = (int) \url_to_blogid( (string) $assoc_args['url'] );
+			$blog_id = $this->get_blog_id_from_url( (string) $assoc_args['url'] );
 			if ( ! $blog_id ) {
 				\WP_CLI::error( "Could not find site for URL: {$assoc_args['url']}" );
 			}
@@ -471,6 +471,58 @@ class Admin_Email_Command {
 		return (int) $count;
 	}
 
+	/**
+	 * Get blog ID from site URL.
+	 * Uses get_sites() instead of url_to_blogid() for better WP-CLI compatibility.
+	 *
+	 * @param string $site_url The site URL to look up.
+	 * @return int Blog ID, or 0 if not found.
+	 */
+	private function get_blog_id_from_url( string $site_url ) : int {
+		// Normalize URL: remove trailing slash and convert to lowercase for comparison.
+		$site_url = \rtrim( \strtolower( $site_url ), '/' );
+
+		// Try to find site by domain and path first (more efficient).
+		$parsed = \parse_url( $site_url );
+		if ( $parsed && ! empty( $parsed['host'] ) ) {
+			$domain = $parsed['host'];
+			$path   = ! empty( $parsed['path'] ) ? \trailingslashit( $parsed['path'] ) : '/';
+
+			$sites = \get_sites(
+				[
+					'domain' => $domain,
+					'path'   => $path,
+					'number' => 10, // Get a few matches in case of path variations.
+				]
+			);
+
+			// Check if any of the found sites match the full URL.
+			foreach ( $sites as $site ) {
+				\switch_to_blog( (int) $site->blog_id );
+				$site_url_check = \rtrim( \strtolower( \get_site_url() ), '/' );
+				\restore_current_blog();
+
+				if ( $site_url_check === $site_url ) {
+					return (int) $site->blog_id;
+				}
+			}
+		}
+
+		// Fallback: search all sites by comparing full URLs (less efficient but more reliable).
+		$all_sites = \get_sites( [ 'number' => 0 ] );
+		foreach ( $all_sites as $site ) {
+			\switch_to_blog( (int) $site->blog_id );
+			$site_url_check = \rtrim( \strtolower( \get_site_url() ), '/' );
+			\restore_current_blog();
+
+			if ( $site_url_check === $site_url ) {
+				return (int) $site->blog_id;
+			}
+		}
+
+		return 0;
+	}
+
 	private function get_page_size() : int {
 		$lines = (int) getenv( 'LINES' );
 		if ( $lines <= 0 ) {
@@ -490,7 +542,7 @@ class Admin_Email_Command {
 	}
 
 	private function update_one_site( string $site_url, string $email, bool $dry_run ) : void {
-		$blog_id = (int) \url_to_blogid( $site_url );
+		$blog_id = $this->get_blog_id_from_url( $site_url );
 		if ( ! $blog_id ) {
 			\WP_CLI::error( "Could not find site for URL: {$site_url}" );
 		}
